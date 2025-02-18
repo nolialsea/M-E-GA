@@ -1,9 +1,14 @@
 # ROADMAP
 
-1. **Typed Genes**
-    - Currently, out genome only represents labels, not discrete values, which is a problem. We need to brainstorm various possible ways to adapt our algorithm to represent arbitrary typed data into the genome.
-    - Using ints and floats as a gene name isn't an option (can't stringify typed data, or we'd lose the range that numbers are capable of). We decided to completely steer away from that approach.
-    - We need to think how other GA libraries are doing it, and see if we can adapt that to our current algorithm.
-    - One of the goal of having typed genes is so we can evolve a Neural Network, storing variables such as connection weights into the genome to leverage the evolution algorithm.
-    - Add multidimensional typed genes (like vectors for neural network weights).
-    - Implement numeric mutations (e.g., Gaussian, Cauchy).
+## 1. Typed Genes (Partially Implemented)
+- We added basic support for storing single-value numeric typed genes in `GeneManager`.
+- We introduced a simple Gaussian mutation approach to mutate numeric genes.
+- Next Steps:
+   - Implement multi-dimensional typed genes (vectors) for neural net weights or advanced data structures.
+   - Add more numeric mutation types (Cauchy, uniform, etc.).
+   - Possibly handle typed meta-genes more explicitly.
+
+## 2. Further Enhancements
+- Enhance searching/deduplication for typed genes if needed.
+- Potentially separate typed gene logic into its own manager if it grows complicated.
+- Keep an eye on performance overhead with large numeric-based populations.

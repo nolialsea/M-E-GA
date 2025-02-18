@@ -3,6 +3,8 @@ mutation_manager.py
 
 Handles high-level mutation orchestration, delegating specific mutation operations
 to separate modules under src/M_E_GA/engine/mutation/.
+
+Now updated to handle numeric typed genes if encountered.
 """
 
 import random
@@ -22,13 +24,17 @@ from .mutation.metagene_mutations import (
     perform_capture,
     perform_open
 )
+# <-- NEW: numeric mutation
+from .mutation.numeric_mutations import (
+    perform_numeric_gaussian_mutation
+)
 
 
 class MutationManager:
     """
     MutationManager is responsible for orchestrating organism-level mutation logic.
     It delegates specific mutations (insertion, deletion, swap, capture, etc.)
-    to smaller modules that follow SRP more closely.
+    to smaller modules that follow SRP more closely, including numeric-based mutations.
     """
 
     def __init__(self, ga_instance):
@@ -52,7 +58,6 @@ class MutationManager:
         :param log_enhanced: If True, returns a list of detailed logs (unused by default).
         :return: The mutated organism. If log_enhanced=True, returns (mutated_organism, logs).
         """
-        # Log the "before_mutation" state
         if self.ga.logging and not log_enhanced:
             self.ga.logging_manager.log_organism_state("before_mutation", organism, generation)
 
@@ -97,6 +102,14 @@ class MutationManager:
         :param depth: The nesting depth (inside delimiters?).
         :return: The string representing the chosen mutation type.
         """
+        # Check if it's typed numeric
+        hash_key = organism[index]
+        gene_data = self.ga.encoding_manager.encodings.get(hash_key, None)
+        if isinstance(gene_data, dict) and gene_data.get('__type__') == 'numeric':
+            # We do numeric mutation here
+            # (We could add more numeric mutation types if we want randomness in numeric approach.)
+            return 'numeric_gaussian_mutation'
+
         gene = organism[index]
         start_codon = self.ga.encoding_manager.reverse_encodings['Start']
         end_codon = self.ga.encoding_manager.reverse_encodings['End']
@@ -171,6 +184,9 @@ class MutationManager:
             return perform_open(organism, index, generation, self, no_delimit=True)
         elif mutation_type == 'insert_delimiter_pair':
             return insert_delimiter_pair(organism, index, generation, self)
+        elif mutation_type == 'numeric_gaussian_mutation':
+            # Our brand-new numeric approach
+            return perform_numeric_gaussian_mutation(organism, index, generation, self, std_dev=0.1)
         else:
             # No recognized mutation
             index += 1
