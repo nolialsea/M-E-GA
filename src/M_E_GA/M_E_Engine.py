@@ -22,8 +22,7 @@ class EncodingManager:
     of interaction for adding genes, capturing metagenes, decoding, and
     random organism generation.
 
-    This class was refactored to delegate single responsibilities to
-    specialized managers, adhering to the SRP principle.
+    Also tracks typed genes in self.typed_genes for cleanup.
     """
 
     def __init__(self, lru_cache_size=100, logger=None, debug=False):
@@ -46,10 +45,10 @@ class EncodingManager:
         self.deletion_basket = {}
         self.unused_encodings = []
 
-        # We track typed genes in a simple set so we can detect them & clean them up
+        # We track typed genes in a set for easy cleanup
         self.typed_genes = set()
 
-        # We track a single integer in a list, so it can be passed by reference
+        # We track a single integer in a list so it can be passed by reference
         self.gene_counter_ref = [3]  # We start at 3 because 1 & 2 are for Start, End
 
         # Instantiate sub-managers
@@ -74,7 +73,6 @@ class EncodingManager:
         )
 
         # Create default delimiters
-        # We specifically skip the user-defined approach and forcibly create "Start"=1, "End"=2
         self.add_gene("Start", predefined_id=1)
         self.add_gene("End", predefined_id=2)
 
@@ -112,9 +110,15 @@ class EncodingManager:
     # -------------------------------------------------------------------------
     def add_gene(self, gene, verbose=False, predefined_id=None):
         """
-        Add a base gene via the GeneManager.
+        Add a base gene via the GeneManager, then if it's typed,
+        record it in self.typed_genes for future cleanup.
+
+        :param gene: The gene data (symbolic str, typed dict, or otherwise).
+        :param verbose: Print extra info if debug is True.
+        :param predefined_id: Force a specific ID for hashing, if desired.
+        :return: The integer hash key assigned to this gene.
         """
-        return self.gene_manager.add_gene(
+        hash_key = self.gene_manager.add_gene(
             gene=gene,
             verbose=verbose,
             predefined_id=predefined_id,
@@ -122,6 +126,12 @@ class EncodingManager:
             unused_encodings=self.unused_encodings,
             gene_counter_ref=self.gene_counter_ref
         )
+
+        # If typed, track it
+        if isinstance(gene, dict) and gene.get('__type__') in ['numeric', 'numeric_vector']:
+            self.typed_genes.add(hash_key)
+
+        return hash_key
 
     def encode(self, genes, verbose=False):
         """
@@ -216,14 +226,11 @@ class EncodingManager:
                 if codon in self.typed_genes:
                     used_typed.add(codon)
 
-        # figure out which typed genes are not in use
         to_remove = self.typed_genes - used_typed
         for dead_codon in to_remove:
-            # remove from encodings
             if dead_codon in self.encodings:
                 del self.encodings[dead_codon]
 
-        # remove them from typed_genes set
         self.typed_genes -= to_remove
 
         if self.debug and to_remove:

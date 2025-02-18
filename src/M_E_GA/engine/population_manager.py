@@ -32,7 +32,10 @@ class PopulationManager:
         """
         population = []
         for _ in range(int(self.ga.population_size)):
-            individual_length = random.randint(2, self.ga.max_individual_length)
+            # If the user sets max_individual_length < 2, let's allow a single gene
+            min_len = min(2, self.ga.max_individual_length)  # can be 1 if max_individual_length=1
+            individual_length = random.randint(min_len, self.ga.max_individual_length)
+
             organism = self.ga.encoding_manager.generate_random_organism(
                 functional_length=individual_length,
                 include_specials=self.ga.delimiters,
