@@ -46,6 +46,9 @@ class EncodingManager:
         self.deletion_basket = {}
         self.unused_encodings = []
 
+        # We track typed genes in a simple set so we can detect them & clean them up
+        self.typed_genes = set()
+
         # We track a single integer in a list, so it can be passed by reference
         self.gene_counter_ref = [3]  # We start at 3 because 1 & 2 are for Start, End
 
@@ -197,41 +200,31 @@ class EncodingManager:
         )
 
     # -------------------------------------------------------------------------
-    # Additional / Integrated logic
+    # Additional typed gene cleanup
     # -------------------------------------------------------------------------
-    def integrate_uploaded_encodings(self, uploaded_encodings, base_genes, verbose=False):
+    def cleanup_typed_genes(self, population):
         """
-        Integrate an externally provided encodings structure.
-        This method can add new base genes or new metagenes as needed.
+        Remove any typed genes that are no longer used by any individual in the population.
+        This prevents memory leaks from typed genes that have fallen out of usage.
 
-        :param uploaded_encodings: A dict or comma-separated string "key:value"
-        :param base_genes: The list of base gene strings that are allowed.
-        :param verbose: If True, print debug info.
+        :param population: The current list of organisms (encoded).
+        :return: None
         """
-        if isinstance(uploaded_encodings, str):
-            uploaded_encodings = {int(k): v for k, v in (item.split(':') for item in uploaded_encodings.split(','))}
+        used_typed = set()
+        for org in population:
+            for codon in org:
+                if codon in self.typed_genes:
+                    used_typed.add(codon)
 
-        start_key = self.reverse_encodings.get('Start')
-        end_key = self.reverse_encodings.get('End')
+        # figure out which typed genes are not in use
+        to_remove = self.typed_genes - used_typed
+        for dead_codon in to_remove:
+            # remove from encodings
+            if dead_codon in self.encodings:
+                del self.encodings[dead_codon]
 
-        for key, value in uploaded_encodings.items():
-            if isinstance(value, str):
-                # Possibly a base gene
-                if value in base_genes or key in [start_key, end_key]:
-                    # If we haven't seen it yet, store it
-                    if value not in self.reverse_encodings or key in [start_key, end_key]:
-                        self.encodings[key] = value
-                        self.reverse_encodings[value] = key
-            elif isinstance(value, tuple):
-                # Then it's a metagene
-                self.encodings[key] = value
-                self.meta_manager.add_meta_gene(key)
-                self.meta_manager.metagene_usage[key] = True
+        # remove them from typed_genes set
+        self.typed_genes -= to_remove
 
-        max_hash_key = max(self.encodings.keys(), default=0)
-        if max_hash_key >= self.gene_counter_ref[0]:
-            self.gene_counter_ref[0] = max_hash_key + 1
-
-        if verbose and self.debug:
-            print(
-                f"[EncodingManager] Integrated external encodings. gene_counter_ref is now {self.gene_counter_ref[0]}.")
+        if self.debug and to_remove:
+            print(f"[EncodingManager] Removed {len(to_remove)} unused typed genes.")

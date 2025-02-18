@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Mar  7 13:09:43 2024
-
-@author: Matt Andrews
-
-@file: M_E_GA_Base.py
+M_E_GA_Base.py
 
 The central coordinating class for the Genetic Algorithm engine.
 
+Orchestrates:
+- GA configuration & initialization
+- Population generation and evolutionary loop
+- Delegation to manager classes for specific responsibilities
+- Summarizing final logs
 """
+
 import datetime
 import json
 import os
@@ -29,8 +31,6 @@ class M_E_GA_Base:
      - Population generation and evolutionary loop
      - Delegation to manager classes for specific responsibilities
      - Summarizing final logs
-
-    This class now defers most logging details to the LoggingManager.
     """
 
     def __init__(
@@ -154,7 +154,6 @@ class M_E_GA_Base:
         # Setup real-time event logger if logging is on
         if self.logging:
             if self.experiment_name is None:
-                # Could prompt or default
                 self.experiment_name = "UnnamedExperiment"
             self.logger = GA_Logger(self.experiment_name)
         else:
@@ -173,7 +172,7 @@ class M_E_GA_Base:
         self.mutation_manager = MutationManager(self)
         self.crossover_manager = CrossoverManager(self)
 
-        # Instantiate the LoggingManager, used for generation-level logs
+        # Instantiate the LoggingManager
         self.logging_manager = LoggingManager(
             logging_enabled=self.logging,
             generation_logging=self.generation_logging,
@@ -216,8 +215,7 @@ class M_E_GA_Base:
 
     def initialize_population(self):
         """
-        Public method to initialize the population using the population manager.
-        Useful for advanced usage if you want to manually do an 'init' step.
+        Initialize the population using the population manager.
 
         :return: A newly generated population (list of organism encodings).
         """
@@ -235,6 +233,7 @@ class M_E_GA_Base:
             c) Log generation stats
             d) Generate new population
             e) Possibly log additional individual stats
+            f) Cleanup typed genes
         3. Dump logs, print final encodings
         """
         # 1. Initialize population if empty
@@ -247,7 +246,7 @@ class M_E_GA_Base:
             # Start new generation log
             self.logging_manager.start_new_generation_logging(generation)
 
-            # Start new generation in encoding manager (for LRU usage/deletion)
+            # Start new generation in encoding manager (LRU usage/deletion for meta-genes)
             self.encoding_manager.start_new_generation()
 
             # Evaluate fitness
@@ -264,6 +263,9 @@ class M_E_GA_Base:
             self.population = self.population_manager.select_and_generate_new_population(
                 self.population, self.fitness_scores, generation
             )
+
+            # Cleanup typed genes (remove any no longer used by the new population)
+            self.encoding_manager.cleanup_typed_genes(self.population)
 
             # Optional user callback
             if self.before_generation_finalize:
@@ -300,7 +302,7 @@ class M_E_GA_Base:
                 "final_fitness_scores": self.fitness_scores,
                 "genes": self.genes,
                 "final_encodings": self.encoding_manager.encodings,
-                "logs": self.logging_manager.get_logs()  # Grab everything from the LoggingManager
+                "logs": self.logging_manager.get_logs()
             }
             log_folder = "logs_and_log_tools"
             if not os.path.exists(log_folder):
@@ -311,6 +313,5 @@ class M_E_GA_Base:
             with open(log_filename, 'w') as f:
                 json.dump(final_log, f, indent=4)
 
-            # Also save the GA_Logger events if it exists
             if self.logger:
                 self.logger.save()

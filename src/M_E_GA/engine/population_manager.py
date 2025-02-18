@@ -55,11 +55,9 @@ class PopulationManager:
         if self.ga.before_fitness_evaluation:
             self.ga.before_fitness_evaluation(self.ga)
 
-        # If we have a dedicated fitness evaluator object, let that handle evaluations:
         if self.ga.fitness_evaluator is not None:
             fitness_scores = self.ga.fitness_evaluator.evaluate(population, self.ga)
         else:
-            # Otherwise, fallback to the fitness_function callable
             fitness_scores = [self.ga.fitness_function(ind, self.ga) for ind in population]
 
         if self.ga.after_population_selection:
@@ -83,10 +81,9 @@ class PopulationManager:
         :return: The new population of organisms (list of encodings).
         """
         # Sort population by fitness
-        sorted_population = sorted(zip(population, fitness_scores),
-                                   key=lambda x: x[1], reverse=True)
+        sorted_population = sorted(zip(population, fitness_scores), key=lambda x: x[1], reverse=True)
 
-        # Get elites
+        # Elites
         num_elites = int(self.ga.elitism_ratio * self.ga.population_size)
         elites = [individual for (individual, _) in sorted_population[:num_elites]]
 
@@ -96,22 +93,21 @@ class PopulationManager:
         selected_parents = [individual for (individual, _) in sorted_population[:self.ga.num_parents]]
         shift = 0
 
-        # Keep filling the new population until it hits target size
+        # Keep filling until target size
         while len(new_population) < self.ga.population_size:
             for i in range(0, len(selected_parents) - 1, 2):
-                # We do a small shift each iteration to vary pairings
                 parent1_index = (i + shift) % len(selected_parents)
                 parent2_index = (i + 1 + shift) % len(selected_parents)
                 parent1 = selected_parents[parent1_index]
                 parent2 = selected_parents[parent2_index]
 
-                # If fully delimited, skip crossover+mutation
                 if self.ga.crossover_manager.is_fully_delimited(parent1) or \
                         self.ga.crossover_manager.is_fully_delimited(parent2):
+                    # If fully delimited, skip crossover+mutation
                     new_population.extend([parent1, parent2][:self.ga.population_size - len(new_population)])
                     continue
 
-                # Possibly apply crossover
+                # Possibly crossover
                 if random.random() < self.ga.crossover_prob:
                     non_del_indices = self.ga.crossover_manager.get_non_delimiter_indices(parent1, parent2)
                     offspring1, offspring2 = self.ga.crossover_manager.crossover(
@@ -120,7 +116,7 @@ class PopulationManager:
                 else:
                     offspring1, offspring2 = parent1[:], parent2[:]
 
-                # Updated references to the logging manager
+                # Log them pre-mutation
                 self.ga.logging_manager.log_new_organism(offspring1)
                 self.ga.logging_manager.log_new_organism(offspring2)
 
@@ -128,10 +124,8 @@ class PopulationManager:
                 offspring1 = self.ga.mutation_manager.mutate_organism(offspring1, generation)
                 offspring2 = self.ga.mutation_manager.mutate_organism(offspring2, generation)
 
-                # Add them
-                new_population.extend(
-                    [offspring1, offspring2][:self.ga.population_size - len(new_population)]
-                )
+                # Add
+                new_population.extend([offspring1, offspring2][:self.ga.population_size - len(new_population)])
 
             shift += 1
 

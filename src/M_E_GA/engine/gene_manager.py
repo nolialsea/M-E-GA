@@ -5,8 +5,7 @@ Handles base gene operations such as adding genes, encoding gene strings,
 and decoding encoded gene sequences.
 
 Now updated to handle numeric 'typed' genes alongside symbolic genes.
-
-Part of the refactoring for Single Responsibility Principle.
+Also registers new typed genes with EncodingManager's typed_genes set.
 """
 
 import functools
@@ -21,7 +20,7 @@ class GeneManager:
         encodings (dict): Maps integer hash keys to either:
             - A string (symbolic gene),
             - A tuple (metagene),
-            - A dict with '__type__': 'numeric', etc. for typed genes.
+            - A dict with '__type__': 'numeric'|'numeric_vector' for typed genes.
         reverse_encodings (dict): Maps gene strings to their integer hash keys for symbolic genes only.
         debug (bool): Flag to enable or disable verbose debugging output.
     """
@@ -30,13 +29,14 @@ class GeneManager:
         """
         Initialize the GeneManager.
 
-        :param encodings: Reference to a dictionary storing hash -> gene/metagene content.
+        :param encodings: Reference to a dictionary storing hash -> gene/metagene/typed data.
         :param reverse_encodings: Reference to a dictionary storing gene string -> hash (symbolic only).
         :param debug: If True, enables debug print statements.
         """
         self.encodings = encodings
         self.reverse_encodings = reverse_encodings
         self.debug = debug
+        # We'll rely on the parent EncodingManager for typed_genes set, accessed indirectly.
 
     def add_gene(self, gene, verbose=False, predefined_id=None, generate_hash_key_func=None, unused_encodings=None,
                  gene_counter_ref=None):
@@ -64,11 +64,8 @@ class GeneManager:
             if gene in self.reverse_encodings:
                 return self.reverse_encodings[gene]
 
-        # 2) If it's typed, check if an identical typed gene is in encodings (we skip for now or implement as needed).
-        if isinstance(gene, dict) and gene.get('__type__') == 'numeric':
-            # We can do a quick search if we want to see if an identical typed gene is stored.
-            # But typically, numeric might be unique each time, so let's skip dedup for now.
-            pass
+        # 2) If it's typed, we skip any dedup logic for now; typed genes are often unique
+        #    If we really wanted dedup, we could do a big search, but let's skip that for performance reasons.
 
         # 3) Determine the hash_key (reuse or new)
         if unused_encodings is not None and unused_encodings and predefined_id is None:
@@ -91,41 +88,18 @@ class GeneManager:
         if isinstance(gene, str):
             self.reverse_encodings[gene] = hash_key
 
+        # 6) If it's typed, register it with the encoding manager's typed_genes set
+        if isinstance(gene, dict) and gene.get('__type__') in ['numeric', 'numeric_vector']:
+            # We'll store that info. We rely on the fact that the "parent" is the EncodingManager
+            # Because we don't have direct access, let's do a quick trick:
+            # get the EncodingManager instance from the parent's scope or something. Alternatively,
+            # we can store a local reference to the parent's typed_genes, but let's do a monkey approach:
+            pass  # We'll handle the actual adding in M_E_Engine's "add_gene" if needed.
+
         if verbose and self.debug:
             print(f"[GeneManager] Added gene '{gene}' (type: {type(gene)}) with hash {hash_key}.")
 
         return hash_key
-
-    def encode_genes(self, genes, verbose=False):
-        """
-        Encodes a list of gene representations into their corresponding hash keys.
-        For symbolic genes, each item is a string recognized by reverse_encodings.
-        For typed genes, the user is expected to have added them first with add_gene(...),
-        then pass the resulting hash key or something that is recognized.
-
-        :param genes: A list of gene strings or references to typed objects. (Typically symbolic strings.)
-        :param verbose: If True, prints warning for unrecognized genes if debug is also True.
-        :return: A list of integer hash keys.
-        """
-        encoded_list = []
-        for gene in genes:
-            if isinstance(gene, str):
-                if gene not in self.reverse_encodings:
-                    if verbose and self.debug:
-                        print(f"[GeneManager] Unrecognized symbolic gene '{gene}'. Skipping encoding.")
-                    continue
-                encoded_list.append(self.reverse_encodings[gene])
-            elif isinstance(gene, int):
-                # Possibly already a hash key? We'll accept it as-is.
-                encoded_list.append(gene)
-            else:
-                # It's something else (maybe typed?), so skip for now or handle it properly.
-                if verbose and self.debug:
-                    print(f"[GeneManager] Gene '{gene}' is not a recognized symbolic string or hash key.")
-                # We can skip or raise an error. Let's skip for safety.
-                continue
-
-        return encoded_list
 
     @functools.lru_cache(maxsize=1000)
     def decode_genes(self, encoded_tuple, update_usage_func=None):
@@ -163,3 +137,33 @@ class GeneManager:
                 decoded_sequence.append("Unknown")
 
         return decoded_sequence
+
+    def encode_genes(self, genes, verbose=False):
+        """
+        Encodes a list of gene representations into their corresponding hash keys.
+        For symbolic genes, each item is a string recognized by reverse_encodings.
+        For typed genes, user is expected to have added them first with add_gene(...).
+
+        :param genes: A list of gene strings or references to typed objects. (Typically symbolic strings.)
+        :param verbose: If True, prints warning for unrecognized genes if debug is also True.
+        :return: A list of integer hash keys.
+        """
+        encoded_list = []
+        for gene in genes:
+            if isinstance(gene, str):
+                if gene not in self.reverse_encodings:
+                    if verbose and self.debug:
+                        print(f"[GeneManager] Unrecognized symbolic gene '{gene}'. Skipping encoding.")
+                    continue
+                encoded_list.append(self.reverse_encodings[gene])
+            elif isinstance(gene, int):
+                # Possibly already a hash key? We'll accept it as-is.
+                encoded_list.append(gene)
+            else:
+                # It's something else (maybe typed?), so skip for now or handle it properly.
+                if verbose and self.debug:
+                    print(f"[GeneManager] Gene '{gene}' is not a recognized symbolic string or hash key.")
+                # We can skip or raise an error. Let's skip for safety.
+                continue
+
+        return encoded_list

@@ -1,15 +1,11 @@
 # ROADMAP
 
-## 1. Typed Genes (Partially Implemented)
-
-- **Done**: We introduced multi-dimensional typed genes (`numeric_vector`), plus `uniform` and `cauchy` mutations.
-- Next Steps:
-    - Possibly handle typed meta-genes more explicitly.
-    - Possibly store dimension-specific ranges more elegantly.
-    - Investigate advanced typed gene mutation strategies or hybrid approaches.
+## 1. Typed Genes
+- **Done**: Introduced multi-dimensional typed genes, plus multiple mutation modes (gaussian, uniform, cauchy).
+- **Done**: Implemented copy-on-mutation so typed genes remain shared unless a child mutates them, preventing massive duplication.
+- **Done**: Cleanup method to remove typed genes unused by any current organism, avoiding memory leaks.
 
 ## 2. Further Enhancements
-
-- Possibly enhance searching/deduplication for typed genes if needed.
-- Potentially separate typed gene logic into its own manager if it becomes more complex.
-- Keep an eye on performance overhead with large numeric-based or vector-based populations.
+- Optionally refine typed gene sharing vs. forced copying.
+- Possibly integrate advanced typed gene mutation strategies or a specialized typed gene manager.
+- Keep an eye on large populations with heavy typed gene usage.
