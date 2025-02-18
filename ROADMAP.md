@@ -1,14 +1,15 @@
 # ROADMAP
 
 ## 1. Typed Genes (Partially Implemented)
-- We added basic support for storing single-value numeric typed genes in `GeneManager`.
-- We introduced a simple Gaussian mutation approach to mutate numeric genes.
+
+- **Done**: We introduced multi-dimensional typed genes (`numeric_vector`), plus `uniform` and `cauchy` mutations.
 - Next Steps:
-   - Implement multi-dimensional typed genes (vectors) for neural net weights or advanced data structures.
-   - Add more numeric mutation types (Cauchy, uniform, etc.).
-   - Possibly handle typed meta-genes more explicitly.
+    - Possibly handle typed meta-genes more explicitly.
+    - Possibly store dimension-specific ranges more elegantly.
+    - Investigate advanced typed gene mutation strategies or hybrid approaches.
 
 ## 2. Further Enhancements
-- Enhance searching/deduplication for typed genes if needed.
-- Potentially separate typed gene logic into its own manager if it grows complicated.
-- Keep an eye on performance overhead with large numeric-based populations.
+
+- Possibly enhance searching/deduplication for typed genes if needed.
+- Potentially separate typed gene logic into its own manager if it becomes more complex.
+- Keep an eye on performance overhead with large numeric-based or vector-based populations.

@@ -4,12 +4,13 @@ mutation_manager.py
 Handles high-level mutation orchestration, delegating specific mutation operations
 to separate modules under src/M_E_GA/engine/mutation/.
 
-Now updated to handle numeric typed genes if encountered.
+Now updated to handle numeric typed genes if encountered, including multi-dimensional
+and alternate mutation modes (gaussian, uniform, cauchy).
 """
 
 import random
 
-# Import specialized mutation functions
+# Import specialized mutation functions from the respective modules
 from .mutation.basic_mutations import (
     perform_insertion,
     perform_point_mutation,
@@ -24,9 +25,8 @@ from .mutation.metagene_mutations import (
     perform_capture,
     perform_open
 )
-# <-- NEW: numeric mutation
-from .mutation.numeric_mutations import (
-    perform_numeric_gaussian_mutation
+from .mutation.typed_mutations import (
+    perform_typed_mutation
 )
 
 
@@ -34,7 +34,7 @@ class MutationManager:
     """
     MutationManager is responsible for orchestrating organism-level mutation logic.
     It delegates specific mutations (insertion, deletion, swap, capture, etc.)
-    to smaller modules that follow SRP more closely, including numeric-based mutations.
+    to smaller modules that follow SRP more closely, including typed numeric mutations.
     """
 
     def __init__(self, ga_instance):
@@ -69,10 +69,7 @@ class MutationManager:
             depth = self.calculate_depth(organism, i)
 
             # Are we inside delimiters?
-            if depth > 0:
-                mutation_prob = self.ga.delimited_mutation_prob
-            else:
-                mutation_prob = self.ga.mutation_prob
+            mutation_prob = self.ga.delimited_mutation_prob if depth > 0 else self.ga.mutation_prob
 
             if random.random() <= mutation_prob:
                 mutation_type = self.select_mutation_type(organism, i, depth)
@@ -102,20 +99,18 @@ class MutationManager:
         :param depth: The nesting depth (inside delimiters?).
         :return: The string representing the chosen mutation type.
         """
-        # Check if it's typed numeric
+        # Check if it's typed numeric or vector
         hash_key = organism[index]
         gene_data = self.ga.encoding_manager.encodings.get(hash_key, None)
-        if isinstance(gene_data, dict) and gene_data.get('__type__') == 'numeric':
-            # We do numeric mutation here
-            # (We could add more numeric mutation types if we want randomness in numeric approach.)
-            return 'numeric_gaussian_mutation'
+        if isinstance(gene_data, dict) and gene_data.get('__type__') in ['numeric', 'numeric_vector']:
+            # We'll apply typed mutation
+            # Let's define a 'typed_mutation' label, so we handle it in apply_mutation()
+            return 'typed_mutation'
 
-        gene = organism[index]
         start_codon = self.ga.encoding_manager.reverse_encodings['Start']
         end_codon = self.ga.encoding_manager.reverse_encodings['End']
 
-        # If it's a Start/End codon
-        if gene in {start_codon, end_codon}:
+        if hash_key in {start_codon, end_codon}:
             # Possibly a delimiter deletion or swap
             if random.random() < self.ga.delimit_delete_prob:
                 return 'delimit_delete'
@@ -152,8 +147,8 @@ class MutationManager:
 
             total_weight = sum(mutation_weights)
             normalized_probs = [w / total_weight for w in mutation_weights]
-            mutation_type = random.choices(mutation_choices, weights=normalized_probs, k=1)[0]
-            return mutation_type
+            chosen = random.choices(mutation_choices, weights=normalized_probs, k=1)[0]
+            return chosen
 
     def apply_mutation(self, organism, index, mutation_type, generation):
         """
@@ -184,11 +179,9 @@ class MutationManager:
             return perform_open(organism, index, generation, self, no_delimit=True)
         elif mutation_type == 'insert_delimiter_pair':
             return insert_delimiter_pair(organism, index, generation, self)
-        elif mutation_type == 'numeric_gaussian_mutation':
-            # Our brand-new numeric approach
-            return perform_numeric_gaussian_mutation(organism, index, generation, self, std_dev=0.1)
+        elif mutation_type == 'typed_mutation':
+            return perform_typed_mutation(organism, index, generation, self)
         else:
-            # No recognized mutation
             index += 1
             return organism, index, None
 
@@ -292,30 +285,22 @@ class MutationManager:
         start_codon = self.ga.encoding_manager.reverse_encodings['Start']
         end_codon = self.ga.encoding_manager.reverse_encodings['End']
 
-        # We'll store indices of valid items here:
-        # or we can build a new list of codons and store them, but we also need to remove unmatched easily
-        # Using "stack of indices" approach:
         stack = []
         i = 0
         while i < len(organism):
             if organism[i] == start_codon:
-                # push the index of the Start to the stack
                 stack.append(i)
                 i += 1
             elif organism[i] == end_codon:
                 if stack:
-                    # pop a matching Start, so we have a valid pair
                     stack.pop()
                     i += 1
                 else:
-                    # unmatched End, remove it
                     del organism[i]
             else:
                 i += 1
 
-        # Now remove any leftover unmatched Start(s)
-        # They are at indices in stack, which might be out-of-date if we've deleted codons in the loop
-        # So we do it carefully from the end.
+        # Remove any leftover unmatched Start(s)
         for idx in reversed(stack):
             del organism[idx]
 
